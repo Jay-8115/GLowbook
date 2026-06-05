@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getAuthHeader } from '@/src/utils/api';
 
 interface Salon {
   id: string;
@@ -24,7 +25,7 @@ export default function AdminSalonsPage() {
       try {
         const res = await fetch('http://localhost:3000/api/admin/salons', {
           headers: {
-            'Authorization': 'Bearer admin_token_placeholder',
+            'Authorization': getAuthHeader(),
           }
         });
         if (!res.ok) throw new Error();
@@ -65,7 +66,7 @@ export default function AdminSalonsPage() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin_token_placeholder',
+          'Authorization': getAuthHeader(),
         },
         body: JSON.stringify({ id, isVerified, isActive }),
       });

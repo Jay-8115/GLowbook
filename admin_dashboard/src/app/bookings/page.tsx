@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getAuthHeader } from '@/src/utils/api';
 
 interface Booking {
   id: string;
@@ -26,7 +27,7 @@ export default function AdminBookingsPage() {
       try {
         const res = await fetch('http://localhost:3000/api/admin/bookings', {
           headers: {
-            'Authorization': 'Bearer admin_token_placeholder',
+            'Authorization': getAuthHeader(),
           }
         });
         if (!res.ok) throw new Error();
@@ -67,13 +68,13 @@ export default function AdminBookingsPage() {
   // 2. Mutation for status transition
   const editStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const res = await fetch(`http://localhost:3000/api/bookings/${id}/status`, {
-        method: 'PATCH',
+      const res = await fetch('http://localhost:3000/api/admin/bookings', {
+        method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin_token_placeholder',
+          'Authorization': getAuthHeader(),
         },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ id }),
       });
       if (!res.ok) throw new Error('Failed to update booking status');
       return res.json();

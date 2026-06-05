@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { getAuthHeader } from '@/src/utils/api';
 
 interface Stats {
   totalUsers: number;
@@ -22,7 +23,7 @@ export default function AdminDashboardPage() {
       try {
         const res = await fetch('http://localhost:3000/api/admin/stats', {
           headers: {
-            'Authorization': 'Bearer admin_token_placeholder', // mock/developer testing
+            'Authorization': getAuthHeader(),
           }
         });
         if (!res.ok) throw new Error();

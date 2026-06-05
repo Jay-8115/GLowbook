@@ -4,7 +4,7 @@ import { comparePassword, generateAccessToken, generateRefreshToken } from '@/sr
 import { z } from 'zod';
 
 const loginSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z.string().min(1, 'Email or username is required'),
   password: z.string().min(1, 'Password is required'),
 });
 
@@ -17,7 +17,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Validation failed', details: validation.error.errors }, { status: 400 });
     }
 
-    const { email, password } = validation.data;
+    let { email, password } = validation.data;
+
+    // Map username 'admin' to seeded admin email
+    if (email.toLowerCase() === 'admin') {
+      email = 'admin@glowbook.com';
+    }
 
     // Find user
     const user = await prisma.user.findUnique({ where: { email } });

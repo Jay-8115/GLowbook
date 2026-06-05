@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getAuthHeader } from '@/src/utils/api';
 
 interface User {
   id: string;
@@ -27,7 +28,7 @@ export default function AdminUsersPage() {
         if (roleFilter) queryParams.append('role', roleFilter);
         const res = await fetch(`http://localhost:3000/api/admin/users?${queryParams.toString()}`, {
           headers: {
-            'Authorization': 'Bearer admin_token_placeholder',
+            'Authorization': getAuthHeader(),
           }
         });
         if (!res.ok) throw new Error();
@@ -51,7 +52,7 @@ export default function AdminUsersPage() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer admin_token_placeholder',
+          'Authorization': getAuthHeader(),
         },
         body: JSON.stringify({ id, role }),
       });

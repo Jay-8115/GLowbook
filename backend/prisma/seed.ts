@@ -6,8 +6,9 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('Seeding database...');
 
-  // Hash standard password "password123"
+  // Hash standard password "password123" and admin password "admin123"
   const passwordHash = await bcrypt.hash('password123', 10);
+  const adminPasswordHash = await bcrypt.hash('admin123', 10);
 
   // 1. Create categories
   const categories = [
@@ -32,11 +33,13 @@ async function main() {
   // 2. Create users
   const admin = await prisma.user.upsert({
     where: { email: 'admin@glowbook.com' },
-    update: {},
+    update: {
+      passwordHash: adminPasswordHash,
+    },
     create: {
       name: 'GlowBook Admin',
       email: 'admin@glowbook.com',
-      passwordHash,
+      passwordHash: adminPasswordHash,
       phone: '+15550100',
       role: 'ADMIN',
     },
