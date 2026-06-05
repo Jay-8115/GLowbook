@@ -32,8 +32,6 @@ app.prepare().then(() => {
     crossOriginEmbedderPolicy: false,
   }));
 
-  server.use(express.json());
-
   // Socket.IO event registrations
   io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
