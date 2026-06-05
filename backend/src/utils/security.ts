@@ -1,8 +1,8 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
-const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET || 'glowbook_access_secret_123!';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'glowbook_refresh_secret_123!';
+const JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'glowbook_access_secret_123!';
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'glowbook_refresh_secret_123!';
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
