@@ -17,7 +17,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node_style: 20
+          node-version: 20
 
       # 1. Build Backend
       - name: Install Backend Packages
