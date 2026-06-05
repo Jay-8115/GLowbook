@@ -1,0 +1,54 @@
+name: GlowBook CI/CD pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node_style: 20
+
+      # 1. Build Backend
+      - name: Install Backend Packages
+        run: |
+          cd backend
+          npm ci
+
+      - name: Generate Prisma Client
+        run: |
+          cd backend
+          npx prisma generate
+
+      - name: Build Backend Service
+        run: |
+          cd backend
+          npm run build
+
+      # 2. Build Admin UI
+      - name: Install Admin Packages
+        run: |
+          cd admin_dashboard
+          npm ci
+
+      - name: Build Admin Panel
+        run: |
+          cd admin_dashboard
+          npm run build
+
+      # 3. Docker build verify
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Test Docker Compose build
+        run: docker compose build

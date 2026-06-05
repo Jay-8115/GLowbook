@@ -1,0 +1,303 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  OWNER
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  ACCEPTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentProvider {
+  STRIPE
+  RAZORPAY
+}
+
+enum TransactionType {
+  DEBIT
+  CREDIT
+  COMMISSION
+  PAYOUT
+  CASHBACK
+}
+
+enum NotificationType {
+  BOOKING_UPDATE
+  PROMOTION
+  REMINDER
+  REVIEW_RECEIVED
+}
+
+model User {
+  id               String            @id @default(uuid())
+  name             String
+  email            String            @unique
+  passwordHash     String
+  phone            String?
+  avatarUrl        String?
+  role             Role              @default(USER)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  
+  salons           Salon[]           @relation("OwnerSalons")
+  bookings         Booking[]
+  reviews          Review[]
+  favorites        Favorite[]
+  wallet           Wallet?
+  loyaltyPoints    LoyaltyPoints?
+  auditLogs        AuditLog[]
+  notifications    Notification[]
+  sentChats        ChatMessage[]     @relation("Sender")
+  receivedChats    ChatMessage[]     @relation("Receiver")
+}
+
+model Category {
+  id         String    @id @default(uuid())
+  name       String    @unique
+  icon       String
+  salonCount Int       @default(0)
+  services   Service[]
+}
+
+model Salon {
+  id            String     @id @default(uuid())
+  name          String
+  description   String
+  ownerId       String
+  owner         User       @relation("OwnerSalons", fields: [ownerId], references: [id], onDelete: Cascade)
+  address       String
+  city          String
+  state         String
+  lat           Float
+  lng           Float
+  phone         String
+  imageUrl      String
+  images        String[]
+  avgRating     Float      @default(0.0)
+  totalReviews  Int        @default(0)
+  totalBookings Int        @default(0)
+  isActive      Boolean    @default(true)
+  isVerified    Boolean    @default(false)
+  openTime      String     // e.g. "09:00"
+  closeTime     String     // e.g. "21:00"
+  totalSeats    Int        @default(1)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  services      Service[]
+  staff         Staff[]
+  bookings      Booking[]
+  reviews       Review[]
+  favorites     Favorite[]
+}
+
+model Service {
+  id              String    @id @default(uuid())
+  salonId         String
+  salon           Salon     @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  name            String
+  description     String
+  price           Float
+  durationMinutes Int
+  categoryId      String
+  category        Category  @relation(fields: [categoryId], references: [id])
+  imageUrl        String?
+  isActive        Boolean   @default(true)
+  discountPercent Float     @default(0.0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  bookings        Booking[]
+}
+
+model Staff {
+  id             String    @id @default(uuid())
+  salonId        String
+  salon          Salon     @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  name           String
+  role           String
+  specialization String
+  avatarUrl      String?
+  isAvailable    Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  bookings       Booking[]
+}
+
+model Booking {
+  id          String        @id @default(uuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  salonId     String
+  salon       Salon         @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  serviceId   String
+  service     Service       @relation(fields: [serviceId], references: [id])
+  staffId     String
+  staff       Staff         @relation(fields: [staffId], references: [id])
+  bookingDate DateTime
+  startTime   String        // e.g. "10:30"
+  endTime     String        // e.g. "11:30"
+  status      BookingStatus @default(PENDING)
+  totalPrice  Float
+  notes       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  payment     Payment?
+  review      Review?
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  bookingId String   @unique
+  booking   Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Favorite {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  salonId   String
+  salon     Salon    @relation(fields: [salonId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, salonId])
+}
+
+model Coupon {
+  id              String   @id @default(uuid())
+  code            String   @unique
+  discountPercent Float
+  maxDiscount     Float
+  minBookingValue Float
+  expiryDate      DateTime
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+}
+
+model Wallet {
+  id           String              @id @default(uuid())
+  userId       String              @unique
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance      Float               @default(0.0)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  transactions WalletTransaction[]
+}
+
+model WalletTransaction {
+  id          String          @id @default(uuid())
+  walletId    String
+  wallet      Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  amount      Float
+  type        TransactionType
+  referenceId String?
+  description String
+  createdAt   DateTime        @default(now())
+}
+
+model LoyaltyPoints {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  points    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Payment {
+  id              String          @id @default(uuid())
+  bookingId       String          @unique
+  booking         Booking         @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  amount          Float
+  status          PaymentStatus   @default(PENDING)
+  provider        PaymentProvider
+  paymentIntentId String          @unique
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  transactions    Transaction[]
+  refunds         Refund[]
+}
+
+model Transaction {
+  id          String          @id @default(uuid())
+  paymentId   String
+  payment     Payment         @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  type        TransactionType
+  amount      Float
+  status      String          // "success", "failed", "pending"
+  referenceId String?
+  createdAt   DateTime        @default(now())
+}
+
+model Refund {
+  id           String   @id @default(uuid())
+  paymentId    String
+  payment      Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  amount       Float
+  status       String   // "processed", "pending", "failed"
+  refundReason String?
+  refundId     String   @unique
+  createdAt    DateTime @default(now())
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  details   String
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
+
+model ChatMessage {
+  id         String   @id @default(uuid())
+  senderId   String
+  sender     User     @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User     @relation("Receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  message    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
