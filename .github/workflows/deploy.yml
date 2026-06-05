@@ -39,7 +39,7 @@ jobs:
       - name: Install Admin Packages
         run: |
           cd admin_dashboard
-          npm ci
+          npm install --legacy-peer-deps
 
       - name: Build Admin Panel
         run: |
