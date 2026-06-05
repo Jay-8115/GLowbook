@@ -21,7 +21,7 @@ export default function AdminDashboardPage() {
     queryFn: async () => {
       // Fetch stats from local backend API or fall back to mock data
       try {
-        const res = await fetch('http://localhost:3000/api/admin/stats', {
+        const res = await fetch('https://g-lowbook.vercel.app/api/admin/stats', {
           headers: {
             'Authorization': getAuthHeader(),
           }

@@ -5,7 +5,7 @@ class ApiService {
   final Dio dio;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   
-  static const String baseUrl = 'http://localhost:3000/api';
+  static const String baseUrl = 'https://g-lowbook.vercel.app/api';
 
   ApiService()
       : dio = Dio(BaseOptions(

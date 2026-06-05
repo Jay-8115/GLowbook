@@ -23,7 +23,7 @@ export default function AdminSalonsPage() {
     queryKey: ['admin-salons'],
     queryFn: async () => {
       try {
-        const res = await fetch('http://localhost:3000/api/admin/salons', {
+        const res = await fetch('https://g-lowbook.vercel.app/api/admin/salons', {
           headers: {
             'Authorization': getAuthHeader(),
           }
@@ -62,7 +62,7 @@ export default function AdminSalonsPage() {
   // 2. Mutation for status toggle
   const editSalonMutation = useMutation({
     mutationFn: async ({ id, isVerified, isActive }: { id: string; isVerified?: boolean; isActive?: boolean }) => {
-      const res = await fetch('http://localhost:3000/api/admin/salons', {
+      const res = await fetch('https://g-lowbook.vercel.app/api/admin/salons', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
