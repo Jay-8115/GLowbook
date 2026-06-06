@@ -26,9 +26,27 @@ export async function GET(req: NextRequest) {
     const categoryId = searchParams.get('categoryId') || undefined;
     const lat = searchParams.get('lat');
     const lng = searchParams.get('lng');
-    const radius = searchParams.get('radius') || '10'; // default 10 km
+    const radius = searchParams.get('radius') || '10'; // radius in km
+    const city = searchParams.get('city') || undefined;
+    const sortBy = searchParams.get('sortBy') || 'rating'; // nearest, rating, popular
 
     let salons;
+
+    // Helper to check open/closed status
+    const calculateOpenStatus = (openTime: string, closeTime: string) => {
+      const now = new Date();
+      // Handle local timezone (Simulated Indian Standard Time offset if needed, or local system time)
+      const currentHour = now.getHours();
+      const currentMin = now.getMinutes();
+      const currentMins = currentHour * 60 + currentMin;
+
+      const [oH, oM] = openTime.split(':').map(Number);
+      const [cH, cM] = closeTime.split(':').map(Number);
+      const openMins = oH * 60 + oM;
+      const closeMins = cH * 60 + cM;
+
+      return currentMins >= openMins && currentMins <= closeMins;
+    };
 
     if (lat && lng) {
       const latVal = parseFloat(lat);
@@ -36,6 +54,7 @@ export async function GET(req: NextRequest) {
       const radiusVal = parseFloat(radius);
 
       // Perform Haversine formula calculation in raw SQL to get IDs and distance
+      // Filter by isVerified = true AND isActive = true
       const rawSalons: { id: string; distance: number }[] = await prisma.$queryRaw`
         SELECT id, (
           6371 * acos(
@@ -45,7 +64,7 @@ export async function GET(req: NextRequest) {
           )
         ) AS distance
         FROM "Salon"
-        WHERE "isActive" = true
+        WHERE "isActive" = true AND "isVerified" = true
         ORDER BY distance ASC
       `;
 
@@ -58,6 +77,8 @@ export async function GET(req: NextRequest) {
         where: {
           id: { in: matchingSalonIds },
           isActive: true,
+          isVerified: true,
+          city: city ? { contains: city, mode: 'insensitive' } : undefined,
           name: search ? { contains: search, mode: 'insensitive' } : undefined,
           services: categoryId
             ? {
@@ -73,19 +94,32 @@ export async function GET(req: NextRequest) {
         },
       });
 
-      // Inject distance back into objects
+      // Inject distance and open/closed status back into objects
       salons = salons.map((salon: any) => {
         const match = rawSalons.find((rs) => rs.id === salon.id);
         return {
           ...salon,
           distance: match ? parseFloat(match.distance.toFixed(2)) : null,
+          isOpen: calculateOpenStatus(salon.openTime, salon.closeTime)
         };
-      }).sort((a: any, b: any) => (a.distance ?? 0) - (b.distance ?? 0));
+      });
+
+      // Perform sorting
+      if (sortBy === 'nearest') {
+        salons.sort((a: any, b: any) => (a.distance ?? 0) - (b.distance ?? 0));
+      } else if (sortBy === 'rating') {
+        salons.sort((a: any, b: any) => b.avgRating - a.avgRating);
+      } else if (sortBy === 'popular') {
+        salons.sort((a: any, b: any) => b.totalBookings - a.totalBookings);
+      }
 
     } else {
+      // Normal database findMany without distance
       salons = await prisma.salon.findMany({
         where: {
           isActive: true,
+          isVerified: true,
+          city: city ? { contains: city, mode: 'insensitive' } : undefined,
           OR: search
             ? [
                 { name: { contains: search, mode: 'insensitive' } },
@@ -104,8 +138,21 @@ export async function GET(req: NextRequest) {
         include: {
           services: { where: { isActive: true } },
         },
-        orderBy: { avgRating: 'desc' },
       });
+
+      // Inject isOpen
+      salons = salons.map((salon: any) => ({
+        ...salon,
+        distance: null,
+        isOpen: calculateOpenStatus(salon.openTime, salon.closeTime)
+      }));
+
+      // Sort normally
+      if (sortBy === 'rating') {
+        salons.sort((a: any, b: any) => b.avgRating - a.avgRating);
+      } else if (sortBy === 'popular') {
+        salons.sort((a: any, b: any) => b.totalBookings - a.totalBookings);
+      }
     }
 
     return NextResponse.json({ salons });

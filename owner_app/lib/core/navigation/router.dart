@@ -6,6 +6,7 @@ import '../../presentation/screens/register_screen.dart';
 import '../../presentation/screens/dashboard_screen.dart';
 import '../../presentation/screens/bookings_management_screen.dart';
 import '../../presentation/screens/salon_management_screen.dart';
+import '../../presentation/screens/services_management_screen.dart';
 import '../../application/providers/auth_provider.dart';
 
 class MainNavigationShell extends StatefulWidget {
@@ -31,6 +32,9 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
         context.go('/bookings');
         break;
       case 2:
+        context.go('/services');
+        break;
+      case 3:
         context.go('/salon');
         break;
     }
@@ -55,6 +59,10 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
           BottomNavigationBarItem(
             icon: Icon(Icons.calendar_today_rounded),
             label: 'Appointments',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.design_services_rounded),
+            label: 'Services',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.store_rounded),
@@ -90,6 +98,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/bookings',
             builder: (context, state) => const BookingsManagementScreen(),
+          ),
+          GoRoute(
+            path: '/services',
+            builder: (context, state) => const ServicesManagementScreen(),
           ),
           GoRoute(
             path: '/salon',

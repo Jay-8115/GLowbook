@@ -61,6 +61,15 @@ export default function RootLayout({
                     <Link href="/salons" className="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg text-gray-300 hover:text-white hover:bg-gray-800/50 transition">
                       Salon Verification
                     </Link>
+                    <Link href="/admin/salon-requests" className="flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-lg text-purple-300 hover:text-purple-100 hover:bg-purple-900/20 border border-purple-500/10 transition">
+                      Salon Requests Workflow
+                    </Link>
+                    <Link href="/salon-dashboard" className="flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-lg text-emerald-300 hover:text-emerald-100 hover:bg-emerald-900/20 border border-emerald-500/10 transition">
+                      Salon Owner Portal
+                    </Link>
+                    <Link href="/customer/search" className="flex items-center gap-3 px-4 py-3 text-sm font-bold rounded-lg text-blue-300 hover:text-blue-100 hover:bg-blue-900/20 border border-blue-500/10 transition">
+                      Customer Nearby Search
+                    </Link>
                     <Link href="/bookings" className="flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg text-gray-300 hover:text-white hover:bg-gray-800/50 transition">
                       Bookings Tracking
                     </Link>

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../application/providers/auth_provider.dart';
 import '../../application/providers/salon_provider.dart';
+import '../../application/providers/location_provider.dart';
 import '../../data/models/salon_model.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -31,23 +32,80 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _onSearchChanged() {
+    final loc = ref.read(locationProvider);
     ref.read(salonProvider.notifier).fetchSalons(
           search: _searchController.text,
           categoryId: _selectedCategoryId,
+          lat: loc.latitude,
+          lng: loc.longitude,
+          radius: loc.radius,
+          city: loc.currentCity,
+          sortBy: loc.sortBy,
         );
+  }
+
+  void _showCityPicker(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF111827),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Select Location / City',
+              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.my_location_rounded, color: Color(0xFF8B5CF6)),
+              title: const Text('Use Current GPS Location', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+              onTap: () {
+                ref.read(locationProvider.notifier).requestAndFetchLocation();
+                Navigator.pop(ctx);
+              },
+            ),
+            const Divider(color: Colors.white12),
+            ...['Rajkot', 'Ahmedabad', 'Surat', 'Vadodara', 'Mumbai'].map(
+              (city) => ListTile(
+                title: Text(city, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Colors.grey),
+                onTap: () {
+                  ref.read(locationProvider.notifier).selectManualCity(city);
+                  Navigator.pop(ctx);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final salonState = ref.watch(salonProvider);
+    final locationState = ref.watch(locationProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFF090D16),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
-            ref.read(salonProvider.notifier).fetchSalons();
+            ref.read(salonProvider.notifier).fetchSalons(
+              lat: locationState.latitude,
+              lng: locationState.longitude,
+              radius: locationState.radius,
+              city: locationState.currentCity,
+              sortBy: locationState.sortBy,
+            );
             ref.read(salonProvider.notifier).fetchFeaturedSalons();
           },
           color: const Color(0xFF8B5CF6),
@@ -59,7 +117,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               children: [
                 const SizedBox(height: 24),
                 
-                // Welcome User Header
+                // Welcome User Header & Location
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -69,15 +127,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         Text(
                           'Hello, ${authState.user?.name ?? "Guest"}! 👋',
                           style: const TextStyle(
-                            fontSize: 22,
+                            fontSize: 20,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Find and book your next self-care session',
-                          style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                        const SizedBox(height: 6),
+                        GestureDetector(
+                          onTap: () => _showCityPicker(context, ref),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF8B5CF6)),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${locationState.currentCity} (Change)',
+                                style: const TextStyle(
+                                  color: Color(0xFF8B5CF6),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -155,6 +226,74 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       );
                     },
                   ),
+                ),
+                const SizedBox(height: 24),
+
+                // Search Radius Filters
+                const Text(
+                  'Search Radius',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
+                const SizedBox(height: 10),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [2.0, 5.0, 10.0, 20.0].map((d) {
+                      final isSelected = locationState.radius == d;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: ChoiceChip(
+                          label: Text(
+                            'Within ${d.toInt()} KM',
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : Colors.grey[450],
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          selected: isSelected,
+                          selectedColor: const Color(0xFF8B5CF6),
+                          backgroundColor: const Color(0xFF111827),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            side: BorderSide.none,
+                          ),
+                          onSelected: (_) {
+                            ref.read(locationProvider.notifier).setRadius(d);
+                          },
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Sorting drop-down selector
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Sort Salons By',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                    DropdownButton<String>(
+                      value: locationState.sortBy,
+                      dropdownColor: const Color(0xFF111827),
+                      underline: const SizedBox(),
+                      style: const TextStyle(color: Color(0xFF8B5CF6), fontSize: 13, fontWeight: FontWeight.bold),
+                      icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF8B5CF6)),
+                      items: const [
+                        DropdownMenuItem(value: 'nearest', child: Text('Nearest Distance')),
+                        DropdownMenuItem(value: 'rating', child: Text('Highest Rated')),
+                        DropdownMenuItem(value: 'popular', child: Text('Most Popular')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          ref.read(locationProvider.notifier).setSortBy(val);
+                        }
+                      },
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 28),
 
@@ -342,6 +481,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         '${salon.openTime} - ${salon.closeTime}',
                         style: TextStyle(fontSize: 11, color: Colors.grey[400]),
                       ),
+                      if (salon.distance != null) ...[
+                        const SizedBox(width: 12),
+                        Text(
+                          '${salon.distance} KM',
+                          style: const TextStyle(fontSize: 11, color: Colors.greenAccent, fontWeight: FontWeight.bold),
+                        ),
+                      ],
                     ],
                   ),
                 ],

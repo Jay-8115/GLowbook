@@ -24,6 +24,27 @@ export async function POST(req: NextRequest) {
       email = 'admin@glowbook.com';
     }
 
+    // Check SalonRegistration status for login restriction
+    const salonReg = await prisma.salonRegistration.findUnique({
+      where: { email },
+    });
+
+    if (salonReg) {
+      if (salonReg.status === 'pending') {
+        return NextResponse.json({
+          success: false,
+          error: 'Your salon registration is under review by the admin.',
+          message: 'Your salon registration is under review by the admin.',
+        }, { status: 403 });
+      } else if (salonReg.status === 'rejected') {
+        return NextResponse.json({
+          success: false,
+          error: 'Your salon registration has been rejected. Please contact support.',
+          message: 'Your salon registration has been rejected. Please contact support.',
+        }, { status: 403 });
+      }
+    }
+
     // Find user
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:dio/dio.dart';
 import '../../core/services/api_service.dart';
 import '../../data/models/user_model.dart';
 
@@ -38,12 +39,34 @@ class AuthNotifier extends StateNotifier<AuthState> {
     try {
       final res = await _apiService.get('/auth/me');
       if (res.statusCode == 200) {
+        // Enforce latest approval status check from DB
+        final profileRes = await _apiService.get('/owner/profile');
+        if (profileRes.statusCode == 200) {
+          final isApproved = profileRes.data['isApproved'] ?? false;
+          final salonStatus = profileRes.data['salonStatus'] ?? '';
+
+          if (!isApproved) {
+            String errMsg = 'Your salon registration is under review by the admin.';
+            if (salonStatus == 'rejected') {
+              errMsg = 'Your salon registration has been rejected. Please contact support.';
+            }
+            state = AuthState(errorMessage: errMsg);
+            await logout();
+            return;
+          }
+        }
         state = AuthState(user: UserModel.fromJson(res.data['user']));
       } else {
         await logout();
       }
     } catch (e) {
-      state = AuthState(errorMessage: 'Network error');
+      if (e is DioException && e.response != null && e.response!.statusCode == 403) {
+        final errMsg = e.response!.data['error'] ?? e.response!.data['message'] ?? 'Access denied';
+        state = AuthState(errorMessage: errMsg);
+      } else {
+        state = AuthState(errorMessage: 'Session expired');
+      }
+      await logout();
     }
   }
 
@@ -68,12 +91,37 @@ class AuthNotifier extends StateNotifier<AuthState> {
         await _storage.write(key: 'ownerAccessToken', value: accessToken);
         await _storage.write(key: 'ownerRefreshToken', value: refreshToken);
 
+        // Fetch latest approval status immediately
+        final profileRes = await _apiService.get('/owner/profile');
+        if (profileRes.statusCode == 200) {
+          final isApproved = profileRes.data['isApproved'] ?? false;
+          final salonStatus = profileRes.data['salonStatus'] ?? '';
+
+          if (!isApproved) {
+            String errMsg = 'Your salon registration is under review by the admin.';
+            if (salonStatus == 'rejected') {
+              errMsg = 'Your salon registration has been rejected. Please contact support.';
+            }
+            state = AuthState(errorMessage: errMsg);
+            await _storage.delete(key: 'ownerAccessToken');
+            await _storage.delete(key: 'ownerRefreshToken');
+            return false;
+          }
+        }
+
         state = AuthState(user: UserModel.fromJson(res.data['user']));
         return true;
       } else {
         state = AuthState(errorMessage: res.data['error'] ?? 'Login failed');
         return false;
       }
+    } on DioException catch (e) {
+      String errMsg = 'Connection failed';
+      if (e.response != null && e.response!.data != null) {
+        errMsg = e.response!.data['error'] ?? e.response!.data['message'] ?? errMsg;
+      }
+      state = AuthState(errorMessage: errMsg);
+      return false;
     } catch (e) {
       state = AuthState(errorMessage: 'Connection failed');
       return false;
@@ -104,6 +152,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
         state = AuthState(errorMessage: res.data['error'] ?? 'Registration failed');
         return false;
       }
+    } on DioException catch (e) {
+      String errMsg = 'Connection failed';
+      if (e.response != null && e.response!.data != null) {
+        errMsg = e.response!.data['error'] ?? e.response!.data['message'] ?? errMsg;
+      }
+      state = AuthState(errorMessage: errMsg);
+      return false;
     } catch (e) {
       state = AuthState(errorMessage: 'Connection failed');
       return false;

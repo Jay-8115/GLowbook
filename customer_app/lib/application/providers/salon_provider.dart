@@ -47,7 +47,15 @@ class SalonNotifier extends StateNotifier<SalonState> {
     fetchFavorites();
   }
 
-  Future<void> fetchSalons({String? search, String? categoryId, double? lat, double? lng}) async {
+  Future<void> fetchSalons({
+    String? search,
+    String? categoryId,
+    double? lat,
+    double? lng,
+    double? radius,
+    String? city,
+    String? sortBy,
+  }) async {
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       final Map<String, dynamic> queryParams = {};
@@ -56,7 +64,15 @@ class SalonNotifier extends StateNotifier<SalonState> {
       if (lat != null && lng != null) {
         queryParams['lat'] = lat.toString();
         queryParams['lng'] = lng.toString();
-        queryParams['radius'] = '15'; // 15 km search radius
+      }
+      if (radius != null) {
+        queryParams['radius'] = radius.toString();
+      }
+      if (city != null && city.isNotEmpty) {
+        queryParams['city'] = city;
+      }
+      if (sortBy != null && sortBy.isNotEmpty) {
+        queryParams['sortBy'] = sortBy;
       }
 
       final res = await _apiService.get('/salons', queryParameters: queryParams);

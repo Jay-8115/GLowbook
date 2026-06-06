@@ -2,8 +2,12 @@
 
 import { API_URL } from '@/src/utils/api';
 import React, { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 
 export default function AdminGuard({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isBypassedPath = pathname.startsWith('/salon-dashboard') || pathname.startsWith('/customer');
+
   const [token, setToken] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [username, setUsername] = useState('');
@@ -86,7 +90,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
     );
   }
 
-  if (!token) {
+  if (!token && !isBypassedPath) {
     return (
       <div className="min-h-screen bg-[#090D16] flex items-center justify-center p-4">
         {/* Background Decorative Gradients */}

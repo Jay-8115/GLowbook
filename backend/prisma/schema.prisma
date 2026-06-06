@@ -16,9 +16,11 @@ enum Role {
 enum BookingStatus {
   PENDING
   ACCEPTED
+  CONFIRMED
   IN_PROGRESS
   COMPLETED
   CANCELLED
+  REJECTED
 }
 
 enum PaymentStatus {
@@ -56,6 +58,7 @@ model User {
   phone            String?
   avatarUrl        String?
   role             Role              @default(USER)
+  fcmToken         String?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
   
@@ -124,6 +127,8 @@ model Service {
   imageUrl        String?
   isActive        Boolean   @default(true)
   discountPercent Float     @default(0.0)
+  discountPrice   Float?
+  isPopular       Boolean   @default(false)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -300,4 +305,30 @@ model ChatMessage {
   message    String
   isRead     Boolean  @default(false)
   createdAt  DateTime @default(now())
+}
+
+enum SalonRegistrationStatus {
+  pending
+  approved
+  rejected
+}
+
+model SalonRegistration {
+  id              String                  @id @default(uuid())
+  ownerName       String
+  email           String                  @unique
+  phone           String
+  salonName       String
+  description     String
+  address         String
+  city            String
+  state           String
+  latitude        Float
+  longitude       Float
+  coverImage      String
+  galleryImages   String[]
+  status          SalonRegistrationStatus @default(pending)
+  rejectionReason String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
 }
