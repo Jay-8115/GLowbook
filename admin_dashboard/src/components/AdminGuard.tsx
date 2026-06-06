@@ -13,6 +13,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
   const [error, setError] = useState('');
 
   useEffect(() => {
+    console.log('BUILD_MARKER: v1.0.5-build-marker - API_URL =', API_URL);
     setToken(localStorage.getItem('admin_token'));
     setIsMounted(true);
   }, []);
@@ -158,7 +159,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
               disabled={isLoading}
               className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-purple-500/10 hover:shadow-purple-500/20 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none mt-2"
             >
-              {isLoading ? 'Verifying Credentials...' : 'Sign In to Dashboard'}
+              {isLoading ? 'Verifying Credentials...' : 'Sign In to Dashboard (v1.0.5-build-marker)'}
             </button>
           </form>
         </div>
