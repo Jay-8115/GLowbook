@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAuthHeader } from '@/src/utils/api';
+import { getAuthHeader, API_URL } from '@/src/utils/api';
 
 interface Booking {
   id: string;
@@ -25,7 +25,7 @@ export default function AdminBookingsPage() {
     queryKey: ['admin-bookings'],
     queryFn: async () => {
       try {
-        const res = await fetch('https://g-lowbook.vercel.app/api/admin/bookings', {
+        const res = await fetch(`${API_URL}/api/admin/bookings`, {
           headers: {
             'Authorization': getAuthHeader(),
           }
@@ -68,7 +68,7 @@ export default function AdminBookingsPage() {
   // 2. Mutation for status transition
   const editStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const res = await fetch('https://g-lowbook.vercel.app/api/admin/bookings', {
+      const res = await fetch(`${API_URL}/api/admin/bookings`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

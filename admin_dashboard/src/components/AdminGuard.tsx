@@ -1,5 +1,7 @@
 'use client';
 
+import { API_URL } from '@/src/utils/api';
+
 import React, { useState, useEffect } from 'react';
 
 export default function AdminGuard({ children }: { children: React.ReactNode }) {
@@ -22,7 +24,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
     setError('');
 
     try {
-      const res = await fetch('https://g-lowbook.vercel.app/api/auth/login', {
+      const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

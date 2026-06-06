@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getAuthHeader } from '@/src/utils/api';
+import { getAuthHeader, API_URL } from '@/src/utils/api';
 
 interface Stats {
   totalUsers: number;
@@ -21,7 +21,7 @@ export default function AdminDashboardPage() {
     queryFn: async () => {
       // Fetch stats from local backend API or fall back to mock data
       try {
-        const res = await fetch('https://g-lowbook.vercel.app/api/admin/stats', {
+        const res = await fetch(`${API_URL}/api/admin/stats`, {
           headers: {
             'Authorization': getAuthHeader(),
           }

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getAuthHeader } from '@/src/utils/api';
+import { getAuthHeader, API_URL } from '@/src/utils/api';
 
 interface User {
   id: string;
@@ -26,7 +26,7 @@ export default function AdminUsersPage() {
         const queryParams = new URLSearchParams();
         if (search) queryParams.append('search', search);
         if (roleFilter) queryParams.append('role', roleFilter);
-        const res = await fetch(`https://g-lowbook.vercel.app/api/admin/users?${queryParams.toString()}`, {
+        const res = await fetch(`${API_URL}/api/admin/users?${queryParams.toString()}`, {
           headers: {
             'Authorization': getAuthHeader(),
           }
@@ -48,7 +48,7 @@ export default function AdminUsersPage() {
   // 2. Mutation to edit User Role
   const editUserMutation = useMutation({
     mutationFn: async ({ id, role }: { id: string; role: 'USER' | 'OWNER' | 'ADMIN' }) => {
-      const res = await fetch('https://g-lowbook.vercel.app/api/admin/users', {
+      const res = await fetch(`${API_URL}/api/admin/users`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
