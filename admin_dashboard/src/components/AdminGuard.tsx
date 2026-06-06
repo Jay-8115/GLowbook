@@ -1,7 +1,6 @@
 'use client';
 
 import { API_URL } from '@/src/utils/api';
-
 import React, { useState, useEffect } from 'react';
 
 export default function AdminGuard({ children }: { children: React.ReactNode }) {
@@ -24,6 +23,12 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
     setError('');
 
     try {
+      console.log('================================');
+      console.log('API_URL =', API_URL);
+      console.log('Login URL =', `${API_URL}/api/auth/login`);
+      console.log('Username =', username);
+      console.log('================================');
+
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
@@ -35,21 +40,38 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
         }),
       });
 
+      console.log('Response Status =', res.status);
+      console.log('Response OK =', res.ok);
+
       const data = await res.json();
+
+      console.log('Response Data =', data);
 
       if (!res.ok) {
         throw new Error(data.error || 'Failed to authenticate');
       }
 
       if (data.user?.role !== 'ADMIN') {
-        throw new Error('Access Denied: Only administrators can access this portal.');
+        throw new Error(
+          'Access Denied: Only administrators can access this portal.'
+        );
       }
 
       localStorage.setItem('admin_token', data.accessToken);
       localStorage.setItem('admin_name', data.user.name);
+
+      console.log('Login Successful');
+      console.log('Token Saved');
+
       setToken(data.accessToken);
     } catch (err: any) {
-      setError(err.message || 'Network error, please check if your backend is running.');
+      console.error('LOGIN ERROR:', err);
+      console.error('ERROR MESSAGE:', err?.message);
+      console.error('ERROR NAME:', err?.name);
+
+      setError(
+        `${err?.name || 'Error'}: ${err?.message || 'Network error, please check backend connectivity.'}`
+      );
     } finally {
       setIsLoading(false);
     }
