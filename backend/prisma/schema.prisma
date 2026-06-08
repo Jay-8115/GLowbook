@@ -133,6 +133,7 @@ model Service {
   updatedAt       DateTime  @updatedAt
 
   bookings        Booking[]
+  staff           StaffService[]
 }
 
 model Staff {
@@ -144,10 +145,19 @@ model Staff {
   specialization String
   avatarUrl      String?
   isAvailable    Boolean   @default(true)
+  phone          String?
+  email          String?
+  workingDays    String[]
+  workingHours   String?
+  experience     Int       @default(0)
+  languages      String[]
+  isActive       Boolean   @default(true)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   bookings       Booking[]
+  services       StaffService[]
+  notifications  StaffNotification[]
 }
 
 model Booking {
@@ -276,14 +286,15 @@ model Refund {
 }
 
 model Notification {
-  id        String           @id @default(uuid())
-  userId    String
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String
-  body      String
-  type      NotificationType
-  isRead    Boolean          @default(false)
-  createdAt DateTime         @default(now())
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  body        String
+  type        String
+  referenceId String?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
 }
 
 model AuditLog {
@@ -331,4 +342,25 @@ model SalonRegistration {
   rejectionReason String?
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
+}
+
+model StaffService {
+  id        String   @id @default(uuid())
+  staffId   String
+  staff     Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  serviceId String
+  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([staffId, serviceId])
+}
+
+model StaffNotification {
+  id        String   @id @default(uuid())
+  staffId   String
+  staff     Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
 }

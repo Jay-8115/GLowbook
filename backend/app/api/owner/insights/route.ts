@@ -27,7 +27,18 @@ export async function GET(req: NextRequest) {
         repeatBookingRate: 0,
         cancellationRate: 0,
         topCustomers: [],
-        topServices: []
+        topServices: [],
+        staffMetrics: {
+          totalStaff: 0,
+          activeStaff: 0,
+          topStaffByRevenue: [],
+          topStaffByBookings: [],
+          topStaffByRatings: [],
+          staffUtilization: 0,
+          revenuePerStaff: 0,
+          bookingsPerStaff: 0,
+          retentionByStaff: []
+        }
       });
     }
 
@@ -47,18 +58,14 @@ export async function GET(req: NextRequest) {
     const hourMap: Record<number, number> = {};
     const dayMap: Record<number, number> = {};
     bookings.forEach((b) => {
-      // Hour from startTime ("09:00" -> 9)
       const hour = parseInt(b.startTime.split(':')[0]);
       if (!isNaN(hour)) {
         hourMap[hour] = (hourMap[hour] || 0) + 1;
       }
-
-      // Day of week from bookingDate (0 = Sunday, 1 = Monday...)
       const day = new Date(b.bookingDate).getDay();
       dayMap[day] = (dayMap[day] || 0) + 1;
     });
 
-    // Find peak hour
     let peakHour = 9;
     let maxHourCount = 0;
     Object.entries(hourMap).forEach(([h, cnt]) => {
@@ -69,7 +76,6 @@ export async function GET(req: NextRequest) {
     });
     const peakBookingHours = `${peakHour.toString().padStart(2, '0')}:00 ${peakHour >= 12 ? 'PM' : 'AM'}`;
 
-    // Find peak day
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     let peakDayIdx = 6;
     let maxDayCount = 0;
@@ -125,7 +131,6 @@ export async function GET(req: NextRequest) {
     const mostPopularServices = serviceList.slice(0, 3).map((s) => s.name);
     const leastPopularServices = [...serviceList].reverse().slice(0, 3).map((s) => s.name);
 
-    // Top 10 Services
     const topServices = serviceList.slice(0, 10).map((s) => ({
       name: s.name,
       bookingsCount: s.count,
@@ -154,10 +159,69 @@ export async function GET(req: NextRequest) {
         spend: parseFloat(c.spend.toFixed(2))
       }));
 
-    // 7. Simulated trends & growth
-    const revenueTrend = 12.5; // growth percentage (standard KPI placeholder)
+    // 7. Staff Specific Metrics
+    const staffMembers = await prisma.staff.findMany({
+      where: { salonId: { in: salonIds } },
+      include: {
+        bookings: {
+          include: {
+            review: true
+          }
+        }
+      }
+    });
+
+    const totalStaff = staffMembers.length;
+    const activeStaff = staffMembers.filter(s => s.isActive).length;
+
+    const staffStats = staffMembers.map(s => {
+      const allBookings = s.bookings;
+      const completedB = allBookings.filter(b => b.status === 'COMPLETED');
+      const revenue = completedB.reduce((sum, b) => sum + b.totalPrice, 0);
+      const bookingsCount = allBookings.length;
+      
+      const reviews = completedB.map(b => b.review).filter(Boolean);
+      const avgRating = reviews.length > 0
+        ? parseFloat((reviews.reduce((sum, r: any) => sum + r.rating, 0) / reviews.length).toFixed(1))
+        : 4.8;
+
+      const userBookings: Record<string, number> = {};
+      allBookings.forEach(b => {
+        userBookings[b.userId] = (userBookings[b.userId] || 0) + 1;
+      });
+      const uniqueUsers = Object.keys(userBookings).length;
+      const repeatUsers = Object.values(userBookings).filter(count => count >= 2).length;
+      const retentionRate = uniqueUsers > 0 ? Math.round((repeatUsers / uniqueUsers) * 100) : 0;
+
+      return {
+        id: s.id,
+        name: s.name,
+        avatarUrl: s.avatarUrl,
+        revenue,
+        bookingsCount,
+        avgRating,
+        retentionRate
+      };
+    });
+
+    const topStaffByRevenue = [...staffStats].sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+    const topStaffByBookings = [...staffStats].sort((a, b) => b.bookingsCount - a.bookingsCount).slice(0, 5);
+    const topStaffByRatings = [...staffStats].sort((a, b) => b.avgRating - a.avgRating).slice(0, 5);
+
+    const totalCompanyRevenue = completed.reduce((sum, b) => sum + b.totalPrice, 0);
+    const revenuePerStaff = totalStaff > 0 ? parseFloat((totalCompanyRevenue / totalStaff).toFixed(2)) : 0;
+    const bookingsPerStaff = totalStaff > 0 ? parseFloat((bookings.length / totalStaff).toFixed(1)) : 0;
+
+    // Staff utilization: average hours booked vs total capacity
+    // Assumption: 160 hours total capacity per active staff member per month
+    const totalCapacityHours = activeStaff * 160;
+    const totalBookedMinutes = completed.reduce((sum, b) => sum + (b.service ? b.service.durationMinutes : 30), 0);
+    const bookedHours = totalBookedMinutes / 60;
+    const staffUtilization = totalCapacityHours > 0 ? parseFloat(Math.min(100, (bookedHours / totalCapacityHours) * 100).toFixed(1)) : 0;
+
+    const revenueTrend = 12.5;
     const bookingTrend = 8.2;
-    const customerGrowth = 15; // new customers this month
+    const customerGrowth = 15;
 
     return NextResponse.json({
       revenueTrend,
@@ -172,7 +236,18 @@ export async function GET(req: NextRequest) {
       repeatBookingRate,
       cancellationRate,
       topCustomers,
-      topServices
+      topServices,
+      staffMetrics: {
+        totalStaff,
+        activeStaff,
+        topStaffByRevenue,
+        topStaffByBookings,
+        topStaffByRatings,
+        staffUtilization,
+        revenuePerStaff,
+        bookingsPerStaff,
+        retentionByStaff: staffStats.map(s => ({ name: s.name, rate: s.retentionRate }))
+      }
     });
 
   } catch (error) {

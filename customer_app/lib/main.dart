@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/navigation/router.dart';
+import 'application/providers/permission_provider.dart';
+import 'application/providers/location_provider.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // Firebase initialization can be loaded here:
-  // await Firebase.initializeApp();
   runApp(
     const ProviderScope(
       child: GlowBookCustomerApp(),
@@ -13,11 +13,38 @@ void main() {
   );
 }
 
-class GlowBookCustomerApp extends ConsumerWidget {
+class GlowBookCustomerApp extends ConsumerStatefulWidget {
   const GlowBookCustomerApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GlowBookCustomerApp> createState() => _GlowBookCustomerAppState();
+}
+
+class _GlowBookCustomerAppState extends ConsumerState<GlowBookCustomerApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Re-check all permission statuses immediately on app resume
+      ref.read(permissionProvider.notifier).checkAllPermissions();
+      // Recheck location service status & coordinates
+      ref.read(locationProvider.notifier).requestAndFetchLocation();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(

@@ -89,7 +89,7 @@ interface OwnerNotification {
 
 export default function SalonDashboardPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<'overview' | 'services' | 'bookings' | 'history' | 'revenue' | 'customers' | 'insights' | 'notifications'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'services' | 'bookings' | 'history' | 'revenue' | 'customers' | 'insights' | 'notifications' | 'staff'>('overview');
   
   // Salon Outlet Selector
   const [selectedSalonId, setSelectedSalonId] = useState<string>('');
@@ -452,6 +452,167 @@ export default function SalonDashboardPage() {
     }
   });
 
+  // --- STAFF STATE, QUERIES & MUTATIONS ---
+  const [staffModal, setStaffModal] = useState<{
+    type: 'add' | 'edit';
+    staff?: any;
+  } | null>(null);
+
+  const [assignServicesModal, setAssignServicesModal] = useState<{
+    staff: any;
+  } | null>(null);
+
+  const [selectedStaffServices, setSelectedStaffServices] = useState<string[]>([]);
+  const [selectedStaffForPerformance, setSelectedStaffForPerformance] = useState<string | null>(null);
+
+  const [staffName, setStaffName] = useState('');
+  const [staffPhone, setStaffPhone] = useState('');
+  const [staffEmail, setStaffEmail] = useState('');
+  const [staffRole, setStaffRole] = useState('');
+  const [staffSpecialization, setStaffSpecialization] = useState('');
+  const [staffAvatarUrl, setStaffAvatarUrl] = useState('');
+  const [staffWorkingDays, setStaffWorkingDays] = useState<string[]>([]);
+  const [staffWorkingHours, setStaffWorkingHours] = useState('09:00-18:00');
+  const [staffExperience, setStaffExperience] = useState(2);
+  const [staffLanguages, setStaffLanguages] = useState<string[]>([]);
+  const [staffIsActive, setStaffIsActive] = useState(true);
+
+  const { data: staffData, isLoading: staffLoading } = useQuery<{ staff: any[] }>({
+    queryKey: ['salon-staff', selectedSalonId],
+    queryFn: async () => {
+      if (!selectedSalonId) return { staff: [] };
+      const res = await fetch(`${API_URL}/api/owner/staff`, {
+        headers: { 'Authorization': getAuthHeader() }
+      });
+      if (!res.ok) throw new Error();
+      return res.json();
+    },
+    enabled: !!selectedSalonId,
+  });
+  const staffList = staffData?.staff || [];
+
+  const { data: staffPerformanceData, isLoading: staffPerformanceLoading } = useQuery({
+    queryKey: ['staff-performance', selectedStaffForPerformance],
+    queryFn: async () => {
+      if (!selectedStaffForPerformance) return null;
+      const res = await fetch(`${API_URL}/api/owner/staff/${selectedStaffForPerformance}/bookings`, {
+        headers: { 'Authorization': getAuthHeader() }
+      });
+      if (!res.ok) throw new Error();
+      return res.json();
+    },
+    enabled: !!selectedStaffForPerformance,
+  });
+
+  const saveStaffMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const isEdit = !!payload.id;
+      const endpoint = isEdit
+        ? `${API_URL}/api/owner/staff/${payload.id}`
+        : `${API_URL}/api/owner/staff`;
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const res = await fetch(endpoint, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': getAuthHeader()
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error();
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['salon-staff', selectedSalonId] });
+      setStaffModal(null);
+    }
+  });
+
+  const deleteStaffMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`${API_URL}/api/owner/staff/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': getAuthHeader() }
+      });
+      if (!res.ok) throw new Error();
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['salon-staff', selectedSalonId] });
+    }
+  });
+
+  const assignStaffServicesMutation = useMutation({
+    mutationFn: async ({ staffId, serviceIds }: { staffId: string; serviceIds: string[] }) => {
+      const res = await fetch(`${API_URL}/api/owner/staff/services`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': getAuthHeader()
+        },
+        body: JSON.stringify({ staffId, serviceIds }),
+      });
+      if (!res.ok) throw new Error();
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['salon-staff', selectedSalonId] });
+      setAssignServicesModal(null);
+      alert('Services assigned successfully!');
+    }
+  });
+
+  const handleOpenAddStaff = () => {
+    setStaffName('');
+    setStaffPhone('');
+    setStaffEmail('');
+    setStaffRole('');
+    setStaffSpecialization('');
+    setStaffAvatarUrl('');
+    setStaffWorkingDays(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
+    setStaffWorkingHours('09:00-18:00');
+    setStaffExperience(2);
+    setStaffLanguages(['English']);
+    setStaffIsActive(true);
+    setStaffModal({ type: 'add' });
+  };
+
+  const handleOpenEditStaff = (staff: any) => {
+    setStaffName(staff.name);
+    setStaffPhone(staff.phone || '');
+    setStaffEmail(staff.email || '');
+    setStaffRole(staff.role);
+    setStaffSpecialization(staff.specialization);
+    setStaffAvatarUrl(staff.avatarUrl || '');
+    setStaffWorkingDays(staff.workingDays || []);
+    setStaffWorkingHours(staff.workingHours || '09:00-18:00');
+    setStaffExperience(staff.experience || 0);
+    setStaffLanguages(staff.languages || []);
+    setStaffIsActive(staff.isActive);
+    setStaffModal({ type: 'edit', staff });
+  };
+
+  const handleStaffSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const payload = {
+      id: staffModal?.staff?.id,
+      salonId: selectedSalonId,
+      name: staffName,
+      phone: staffPhone || null,
+      email: staffEmail || null,
+      role: staffRole,
+      specialization: staffSpecialization,
+      avatarUrl: staffAvatarUrl || null,
+      workingDays: staffWorkingDays,
+      workingHours: staffWorkingHours,
+      experience: Number(staffExperience),
+      languages: staffLanguages,
+      isActive: staffIsActive
+    };
+    saveStaffMutation.mutate(payload);
+  };
+
   // --- SERVICE FORM ACTIONS ---
 
   const handleOpenAddService = () => {
@@ -542,6 +703,7 @@ export default function SalonDashboardPage() {
               { id: 'history', label: 'Booking History', icon: FileClock },
               { id: 'revenue', label: 'Revenue Analytics', icon: CirclePercent },
               { id: 'customers', label: 'Client Directory', icon: Users },
+              { id: 'staff', label: 'Staff Management', icon: Users2 },
               { id: 'insights', label: 'Business Insights', icon: BrainCircuit },
               { id: 'notifications', label: 'Notification logs', icon: Bell, badge: unreadCount }
             ].map(tab => (
@@ -934,13 +1096,17 @@ export default function SalonDashboardPage() {
                             b.status === 'PENDING' ? 'bg-amber-400 animate-pulse' : b.status === 'CONFIRMED' ? 'bg-purple-500' : 'bg-blue-400'
                           }`} />
                           <h4 className="font-bold text-white text-xs">
-                            Customer: {b.customerName} &bull; <span className="font-mono text-gray-400">{b.mobileNumber}</span>
+                            Customer: {b.customerName} &bull; <span className="font-mono text-gray-400">{b.mobileNumber}</span> &bull; <span className="text-gray-500">{b.email}</span>
                           </h4>
                         </div>
-                        <div className="text-[11px] text-gray-450 space-y-1 pl-5">
+                        <div className="text-[11px] text-gray-450 space-y-1.5 pl-5">
+                          <p className="font-bold text-white">
+                            Booking ID: <span className="font-mono text-purple-400 select-all">{b.id}</span>
+                          </p>
                           <p className="font-bold text-white">Service: <span className="text-purple-400">{b.serviceName} (₹{b.price})</span></p>
                           <p>Scheduled: <span className="text-white font-semibold">{new Date(b.date).toLocaleDateString()} at {b.time}</span></p>
                           <p>Stylist: <span className="text-white">{b.staffName}</span></p>
+                          <p>Payment: <span className="bg-purple-950/50 text-purple-300 border border-purple-500/20 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase">PENDING</span></p>
                           {b.notes && <p className="italic text-gray-500">Note: &ldquo;{b.notes}&rdquo;</p>}
                         </div>
                       </div>
@@ -1061,21 +1227,28 @@ export default function SalonDashboardPage() {
                       <tbody className="divide-y divide-gray-850">
                         {historyBookings.map((b) => (
                           <tr key={b.id} className="text-gray-300">
-                            <td className="py-3.5 font-semibold text-white">{b.customerName}</td>
+                            <td className="py-3.5 font-semibold text-white">
+                              <p>{b.customerName}</p>
+                              <p className="text-[9px] text-gray-500 font-mono mt-0.5">{b.mobileNumber}</p>
+                              <p className="text-[9px] text-gray-500 font-mono mt-0.5">{b.id.substring(0, 8)}...</p>
+                            </td>
                             <td className="py-3.5 text-purple-400 font-bold">{b.serviceName}</td>
                             <td className="py-3.5 font-mono">{new Date(b.date).toLocaleDateString()} &bull; {b.time}</td>
                             <td className="py-3.5 font-bold">₹{b.price}</td>
                             <td className="py-3.5">{b.staffName}</td>
                             <td className="py-3.5 text-right">
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${
-                                b.status === 'COMPLETED'
-                                  ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/20'
-                                  : b.status === 'PENDING'
-                                  ? 'bg-amber-950/60 text-amber-400 border border-amber-500/20'
-                                  : 'bg-rose-950/60 text-rose-455 border border-rose-500/20'
-                              }`}>
-                                {b.status}
-                              </span>
+                              <div className="flex flex-col items-end gap-1">
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase ${
+                                  b.status === 'COMPLETED'
+                                    ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-500/20'
+                                    : b.status === 'PENDING'
+                                    ? 'bg-amber-950/60 text-amber-400 border border-amber-500/20'
+                                    : 'bg-rose-950/60 text-rose-455 border border-rose-500/20'
+                                }`}>
+                                  {b.status}
+                                </span>
+                                <span className="bg-purple-950/40 text-purple-300 border border-purple-500/10 px-1 py-0.5 rounded text-[8px] font-bold uppercase">Paid</span>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -1241,6 +1414,64 @@ export default function SalonDashboardPage() {
                 ))}
               </div>
 
+              {/* Staff Analytics Grid */}
+              <div>
+                <h4 className="font-extrabold text-white text-sm mb-4">Staff Directory Insights</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                  {[
+                    { label: 'Total Staff', val: insights?.staffMetrics?.totalStaff || 0, desc: 'Registered stylists' },
+                    { label: 'Active Staff', val: insights?.staffMetrics?.activeStaff || 0, desc: 'Currently working' },
+                    { label: 'Staff Utilization', val: `${insights?.staffMetrics?.staffUtilization || 0}%`, desc: 'Average busy capacity ratio' },
+                    { label: 'Revenue Per Staff', val: `₹${insights?.staffMetrics?.revenuePerStaff || 0}`, desc: 'Avg revenue contribution' }
+                  ].map((item, i) => (
+                    <div key={i} className="bg-purple-950/10 border border-purple-500/10 rounded-2xl p-5 text-center">
+                      <span className="text-[10px] text-purple-400 font-bold uppercase tracking-wider">{item.label}</span>
+                      <p className="text-2xl font-black text-white mt-1">{item.val}</p>
+                      <p className="text-[9px] text-gray-400 mt-1">{item.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Top Performing Staff Lists */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-gray-900/40 border border-gray-800/80 rounded-2xl p-6 shadow-xl space-y-4">
+                  <h4 className="font-bold text-white text-xs uppercase tracking-wider text-purple-400">Top Staff By Revenue</h4>
+                  <div className="space-y-2">
+                    {(insights?.staffMetrics?.topStaffByRevenue || []).map((s: any, idx: number) => (
+                      <div key={idx} className="flex justify-between items-center text-xs py-1 border-b border-gray-850">
+                        <span className="text-gray-300 font-semibold">{s.name}</span>
+                        <span className="text-white font-bold">₹{s.revenue}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-gray-900/40 border border-gray-800/80 rounded-2xl p-6 shadow-xl space-y-4">
+                  <h4 className="font-bold text-white text-xs uppercase tracking-wider text-purple-400">Top Staff By Bookings</h4>
+                  <div className="space-y-2">
+                    {(insights?.staffMetrics?.topStaffByBookings || []).map((s: any, idx: number) => (
+                      <div key={idx} className="flex justify-between items-center text-xs py-1 border-b border-gray-850">
+                        <span className="text-gray-300 font-semibold">{s.name}</span>
+                        <span className="text-white font-bold">{s.bookingsCount} visits</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-gray-900/40 border border-gray-800/80 rounded-2xl p-6 shadow-xl space-y-4">
+                  <h4 className="font-bold text-white text-xs uppercase tracking-wider text-purple-400">Top Staff By Ratings</h4>
+                  <div className="space-y-2">
+                    {(insights?.staffMetrics?.topStaffByRatings || []).map((s: any, idx: number) => (
+                      <div key={idx} className="flex justify-between items-center text-xs py-1 border-b border-gray-850">
+                        <span className="text-gray-300 font-semibold">{s.name}</span>
+                        <span className="text-amber-450 font-bold">★ {s.avgRating}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               {/* Hour & day peak analysis */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 
@@ -1356,8 +1587,474 @@ export default function SalonDashboardPage() {
             </div>
           )}
 
+          {/* TAB: STAFF MANAGEMENT */}
+          {activeTab === 'staff' && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="font-extrabold text-white text-lg">Staff Directory</h3>
+                  <p className="text-xs text-gray-400">Add staff, customize shifts, assign eligible service categories, and monitor stylist bookings.</p>
+                </div>
+                <button
+                  onClick={handleOpenAddStaff}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs transition shadow-lg shadow-purple-500/10 flex items-center gap-2"
+                >
+                  <span>+</span> Add New Staff
+                </button>
+              </div>
+
+              {staffLoading ? (
+                <div className="text-gray-500 text-center py-12">Loading staff database...</div>
+              ) : staffList.length === 0 ? (
+                <div className="bg-gray-900/40 border border-gray-800 rounded-2xl p-12 text-center text-gray-500 text-xs">
+                  No staff members registered. Click "+ Add New Staff" to configure.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {staffList.map((s: any) => (
+                    <div key={s.id} className="bg-gray-900/40 border border-gray-800/80 rounded-2xl p-5 shadow-xl flex flex-col justify-between hover:border-gray-700/80 transition space-y-4">
+                      
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-full bg-purple-950 border border-purple-500/20 overflow-hidden shrink-0">
+                            {s.avatarUrl ? (
+                              <img src={s.avatarUrl} alt={s.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center font-bold text-purple-400 text-sm">
+                                {s.name.charAt(0)}
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-extrabold text-white text-xs truncate flex items-center gap-1.5">
+                              {s.name}
+                              {!s.isActive && (
+                                <span className="bg-rose-500/10 text-rose-500 text-[8px] font-bold px-1.5 py-0.5 rounded border border-rose-500/20 uppercase">INACTIVE</span>
+                              )}
+                            </h4>
+                            <p className="text-[10px] text-gray-400 truncate">{s.role} &bull; {s.specialization}</p>
+                          </div>
+                        </div>
+
+                        <div className="text-xs text-gray-400 space-y-1 pt-2 border-t border-gray-850">
+                          {s.phone && <p>📞 Phone: <span className="text-white font-mono">{s.phone}</span></p>}
+                          {s.email && <p>📧 Email: <span className="text-white">{s.email}</span></p>}
+                          <p>📅 Schedule: <span className="text-white">{(s.workingDays || []).slice(0, 3).join(', ')}{(s.workingDays || []).length > 3 ? '...' : ''} ({s.workingHours || 'N/A'})</span></p>
+                          <p>💼 Experience: <span className="text-white">{s.experience} Years</span></p>
+                          <p>🗣️ Languages: <span className="text-white">{(s.languages || []).join(', ')}</span></p>
+                        </div>
+
+                        {/* Assigned Services */}
+                        <div className="pt-2 border-t border-gray-850">
+                          <span className="text-gray-500 text-[9px] uppercase tracking-wider font-bold">Assigned Services</span>
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {s.services && s.services.length > 0 ? (
+                              s.services.map((mapping: any) => (
+                                <span key={mapping.id} className="bg-purple-950/40 text-purple-300 text-[9px] px-2 py-0.5 rounded border border-purple-900/20">
+                                  {mapping.service.name}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-gray-600 text-[10px] italic">No services assigned</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2 pt-3 border-t border-gray-850">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setSelectedStaffServices((s.services || []).map((m: any) => m.serviceId));
+                              setAssignServicesModal({ staff: s });
+                            }}
+                            className="flex-1 bg-purple-950/60 hover:bg-purple-900 text-purple-400 py-1.5 rounded-lg border border-purple-500/20 text-[10px] font-bold uppercase transition"
+                          >
+                            Assign Services
+                          </button>
+                          <button
+                            onClick={() => setSelectedStaffForPerformance(s.id)}
+                            className="flex-1 bg-indigo-950/60 hover:bg-indigo-900 text-indigo-400 py-1.5 rounded-lg border border-indigo-500/20 text-[10px] font-bold uppercase transition"
+                          >
+                            Analytics & Bookings
+                          </button>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleOpenEditStaff(s)}
+                            className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 py-1.5 rounded-lg border border-gray-700 text-[10px] font-bold uppercase transition"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm('Are you sure you want to delete this staff member? All their booking assignments will be preserved but they will be removed.')) {
+                                deleteStaffMutation.mutate(s.id);
+                              }
+                            }}
+                            className="flex-1 bg-rose-950/40 hover:bg-rose-950 text-rose-455 py-1.5 rounded-lg border border-rose-900/30 text-[10px] font-bold uppercase transition"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
         </main>
       </div>
+
+      {/* STAFF DETAILS PERFORMANCE & BOOKINGS MODAL */}
+      {selectedStaffForPerformance && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-4xl bg-[#111827] border border-gray-850 rounded-2xl p-6 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-purple-950 border border-purple-500/20 overflow-hidden shrink-0">
+                  {staffPerformanceData?.staffInfo?.avatarUrl ? (
+                    <img src={staffPerformanceData.staffInfo.avatarUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center font-bold text-purple-400 text-lg">
+                      {staffPerformanceData?.staffInfo?.name?.charAt(0)}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">{staffPerformanceData?.staffInfo?.name}</h3>
+                  <p className="text-xs text-purple-400">{staffPerformanceData?.staffInfo?.role} &bull; {staffPerformanceData?.staffInfo?.specialization}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedStaffForPerformance(null)}
+                className="text-gray-400 hover:text-white font-bold text-sm"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            {staffPerformanceLoading ? (
+              <p className="text-xs text-gray-500 py-6 text-center animate-pulse">Loading analytics data...</p>
+            ) : (
+              <div className="space-y-6">
+                {/* Stats row */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-gray-950/40 p-4 rounded-xl text-center border border-gray-850">
+                    <span className="text-[9px] text-gray-500 font-bold uppercase">Total Bookings</span>
+                    <p className="text-xl font-bold text-white mt-1">{staffPerformanceData?.statistics?.totalBookings || 0}</p>
+                  </div>
+                  <div className="bg-gray-950/40 p-4 rounded-xl text-center border border-gray-850">
+                    <span className="text-[9px] text-gray-500 font-bold uppercase">Revenue Generated</span>
+                    <p className="text-xl font-bold text-emerald-400 mt-1">₹{staffPerformanceData?.statistics?.totalRevenue || 0}</p>
+                  </div>
+                  <div className="bg-gray-950/40 p-4 rounded-xl text-center border border-gray-850">
+                    <span className="text-[9px] text-gray-500 font-bold uppercase">Average Rating</span>
+                    <p className="text-xl font-bold text-amber-500 mt-1">★ {staffPerformanceData?.statistics?.averageRating || '5.0'}</p>
+                  </div>
+                  <div className="bg-gray-950/40 p-4 rounded-xl text-center border border-gray-850">
+                    <span className="text-[9px] text-gray-500 font-bold uppercase">Completed vs Cancelled</span>
+                    <p className="text-xl font-bold text-indigo-400 mt-1">{staffPerformanceData?.statistics?.completedCount || 0} / {staffPerformanceData?.statistics?.cancelledCount || 0}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Today's Schedule */}
+                  <div className="bg-gray-950/20 border border-gray-850 rounded-xl p-4 space-y-3">
+                    <h4 className="font-extrabold text-white text-xs uppercase tracking-wide">Today's Schedule</h4>
+                    {staffPerformanceData?.bookings?.today?.length === 0 ? (
+                      <p className="text-[11px] text-gray-500 py-4">No appointments scheduled today.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-56 overflow-y-auto">
+                        {staffPerformanceData?.bookings?.today?.map((b: any) => (
+                          <div key={b.id} className="p-3 bg-gray-900/40 rounded-lg border border-gray-800 text-xs flex justify-between items-center">
+                            <div>
+                              <p className="font-bold text-white">{b.customerName} &bull; <span className="text-purple-400">{b.serviceName}</span></p>
+                              <p className="text-[10px] text-gray-500">{b.time}</p>
+                            </div>
+                            <span className="bg-purple-950 text-purple-400 border border-purple-500/20 px-2 py-0.5 rounded text-[9px] font-bold uppercase">{b.status}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Upcoming Schedule */}
+                  <div className="bg-gray-955/20 border border-gray-855 rounded-xl p-4 space-y-3">
+                    <h4 className="font-extrabold text-white text-xs uppercase tracking-wide">Upcoming Appointments</h4>
+                    {staffPerformanceData?.bookings?.upcoming?.length === 0 ? (
+                      <p className="text-[11px] text-gray-500 py-4">No upcoming client appointments.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-56 overflow-y-auto">
+                        {staffPerformanceData?.bookings?.upcoming?.map((b: any) => (
+                          <div key={b.id} className="p-3 bg-gray-900/40 rounded-lg border border-gray-800 text-xs flex justify-between items-center">
+                            <div>
+                              <p className="font-bold text-white">{b.customerName} &bull; <span className="text-purple-400">{b.serviceName}</span></p>
+                              <p className="text-[10px] text-gray-400">{new Date(b.date).toLocaleDateString()} at {b.time}</p>
+                            </div>
+                            <span className="bg-purple-950 text-purple-400 border border-purple-500/20 px-2 py-0.5 rounded text-[9px] font-bold uppercase">{b.status}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Reviews and Ratings */}
+                <div className="bg-gray-955/20 border border-gray-855 rounded-xl p-4 space-y-3">
+                  <h4 className="font-extrabold text-white text-xs uppercase tracking-wide">Stylist Reviews</h4>
+                  {staffPerformanceData?.reviews?.length === 0 ? (
+                    <p className="text-[11px] text-gray-500 py-4">No reviews logged for this stylist.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-56 overflow-y-auto">
+                      {staffPerformanceData?.reviews?.map((r: any) => (
+                        <div key={r.id} className="p-3.5 bg-gray-900/40 rounded-lg border border-gray-800 text-xs space-y-1">
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-white">{r.customerName}</span>
+                            <span className="text-amber-500 font-bold">★ {r.rating}</span>
+                          </div>
+                          <p className="text-gray-400 italic font-medium">&ldquo;{r.comment}&rdquo;</p>
+                          <p className="text-[9px] text-gray-500">{new Date(r.createdAt).toLocaleDateString()}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* STYLIST SERVICE ASSIGNMENT DIALOG */}
+      {assignServicesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg bg-[#111827] border border-gray-855 rounded-2xl p-6 shadow-2xl space-y-5 animate-scaleUp">
+            <div>
+              <h3 className="text-md font-bold text-white">Assign Services</h3>
+              <p className="text-xs text-gray-400 mt-1">Select services that {assignServicesModal.staff.name} is certified/eligible to perform.</p>
+            </div>
+
+            <div className="space-y-3 max-h-64 overflow-y-auto border border-gray-800/80 rounded-xl p-3 bg-gray-950/20">
+              {services.map((s) => (
+                <label key={s.id} className="flex items-center gap-3 p-2 hover:bg-gray-900/40 rounded-lg cursor-pointer text-xs">
+                  <input
+                    type="checkbox"
+                    checked={selectedStaffServices.includes(s.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedStaffServices(prev => [...prev, s.id]);
+                      } else {
+                        setSelectedStaffServices(prev => prev.filter(id => id !== s.id));
+                      }
+                    }}
+                    className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 bg-gray-950 border-gray-800"
+                  />
+                  <div>
+                    <p className="font-bold text-white">{s.name}</p>
+                    <p className="text-[10px] text-gray-550">{s.category?.name || 'General'} &bull; {s.durationMinutes} mins &bull; ₹{s.price}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-3 text-[10px] font-bold uppercase pt-4 border-t border-gray-850">
+              <button
+                type="button"
+                onClick={() => setAssignServicesModal(null)}
+                className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2.5 rounded-lg transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => assignStaffServicesMutation.mutate({
+                  staffId: assignServicesModal.staff.id,
+                  serviceIds: selectedStaffServices
+                })}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-lg transition"
+              >
+                Save Mappings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STAFF DIALOG MODAL (ADD / EDIT) */}
+      {staffModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-xl bg-[#111827] border border-gray-855 rounded-2xl p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-md font-bold text-white">
+              {staffModal.type === 'add' ? 'Add Salon Stylist / Staff' : 'Edit Staff Details'}
+            </h3>
+
+            <form onSubmit={handleStaffSubmit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-400 font-bold mb-2 uppercase text-[9px] tracking-wider">Stylist Name</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Rahul Sharma"
+                    value={staffName}
+                    onChange={(e) => setStaffName(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-purple-500 transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 font-bold mb-2 uppercase text-[9px] tracking-wider">Staff Role</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Senior Hair Stylist"
+                    value={staffRole}
+                    onChange={(e) => setStaffRole(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-purple-500 transition"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-400 font-bold mb-2 uppercase text-[9px] tracking-wider">Contact Email</label>
+                  <input
+                    type="email"
+                    placeholder="rahul@example.com"
+                    value={staffEmail}
+                    onChange={(e) => setStaffEmail(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-purple-500 transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 font-bold mb-2 uppercase text-[9px] tracking-wider">Contact Phone</label>
+                  <input
+                    type="tel"
+                    placeholder="+919876543210"
+                    value={staffPhone}
+                    onChange={(e) => setStaffPhone(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-purple-500 transition"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-gray-400 font-bold mb-2 uppercase text-[9px] tracking-wider">Specialization</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Balayage, Fades"
+                    value={staffSpecialization}
+                    onChange={(e) => setStaffSpecialization(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-purple-500 transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 font-bold mb-2 uppercase text-[9px] tracking-wider">Years Experience</label>
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    value={staffExperience}
+                    onChange={(e) => setStaffExperience(Number(e.target.value))}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-purple-500 transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 font-bold mb-2 uppercase text-[9px] tracking-wider">Shift Working Hours</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="09:00-18:00"
+                    value={staffWorkingHours}
+                    onChange={(e) => setStaffWorkingHours(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-purple-500 transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-400 font-bold mb-2 uppercase text-[9px] tracking-wider">Working Days (Shift Schedule)</label>
+                <div className="grid grid-cols-4 gap-2 border border-gray-850 p-3.5 rounded-xl bg-gray-950/20">
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => (
+                    <label key={day} className="flex items-center gap-2 cursor-pointer font-bold text-[10px] text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={staffWorkingDays.includes(day)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setStaffWorkingDays(prev => [...prev, day]);
+                          } else {
+                            setStaffWorkingDays(prev => prev.filter(d => d !== day));
+                          }
+                        }}
+                        className="w-3.5 h-3.5 rounded text-purple-600 focus:ring-purple-500 bg-gray-950 border-gray-800"
+                      />
+                      {day.substring(0, 3)}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-400 font-bold mb-2 uppercase text-[9px] tracking-wider">Profile Avatar Image URL</label>
+                  <input
+                    type="url"
+                    placeholder="https://images.unsplash.com/..."
+                    value={staffAvatarUrl}
+                    onChange={(e) => setStaffAvatarUrl(e.target.value)}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-purple-500 transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-400 font-bold mb-2 uppercase text-[9px] tracking-wider">Languages (comma separated)</label>
+                  <input
+                    type="text"
+                    placeholder="English, Hindi"
+                    value={staffLanguages.join(', ')}
+                    onChange={(e) => setStaffLanguages(e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+                    className="w-full bg-gray-950 border border-gray-800 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-purple-500 transition"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-6 pt-2">
+                <label className="flex items-center gap-2 cursor-pointer font-bold uppercase text-[9px] tracking-wide text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={staffIsActive}
+                    onChange={(e) => setStaffIsActive(e.target.checked)}
+                    className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500 bg-gray-950 border-gray-800"
+                  />
+                  Mark as Active
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-3 text-[10px] font-bold uppercase pt-4 border-t border-gray-850">
+                <button
+                  type="button"
+                  onClick={() => setStaffModal(null)}
+                  className="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2.5 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-lg transition"
+                >
+                  Save Staff
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* SERVICE DIALOG MODAL (ADD / EDIT) */}
       {serviceModal && (

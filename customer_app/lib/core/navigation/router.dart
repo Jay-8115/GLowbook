@@ -9,7 +9,9 @@ import '../../presentation/screens/booking_flow_screen.dart';
 import '../../presentation/screens/bookings_list_screen.dart';
 import '../../presentation/screens/favorites_screen.dart';
 import '../../presentation/screens/profile_screen.dart';
+import '../../presentation/screens/permission_screen.dart';
 import '../../application/providers/auth_provider.dart';
+import '../../application/providers/permission_provider.dart';
 
 // Main navigation tab shell
 class MainNavigationShell extends StatefulWidget {
@@ -79,9 +81,12 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authProvider);
+  final permissionState = ref.watch(permissionProvider);
 
   return GoRouter(
-    initialLocation: authState.user == null ? '/login' : '/home',
+    initialLocation: authState.user == null 
+        ? '/login' 
+        : (!permissionState.areMandatoryGranted ? '/permissions' : '/home'),
     routes: [
       GoRoute(
         path: '/login',
@@ -90,6 +95,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/register',
         builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: '/permissions',
+        builder: (context, state) => const PermissionScreen(),
       ),
       ShellRoute(
         builder: (context, state, child) => MainNavigationShell(child: child),
@@ -133,9 +142,22 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final loggedIn = ref.read(authProvider).user != null;
       final goingToAuth = state.matchedLocation == '/login' || state.matchedLocation == '/register';
+      final goingToPermissions = state.matchedLocation == '/permissions';
 
-      if (!loggedIn && !goingToAuth) return '/login';
-      if (loggedIn && goingToAuth) return '/home';
+      if (!loggedIn) {
+        if (!goingToAuth) return '/login';
+        return null;
+      }
+
+      // Logged in
+      final areMandatoryGranted = ref.read(permissionProvider).areMandatoryGranted;
+      if (!areMandatoryGranted) {
+        if (!goingToPermissions) return '/permissions';
+        return null;
+      }
+
+      // Logged in & permissions granted
+      if (goingToAuth || goingToPermissions) return '/home';
       return null;
     },
   );

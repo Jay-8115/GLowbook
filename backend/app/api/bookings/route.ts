@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { authenticate } from '@/lib/middleware';
 import { z } from 'zod';
+import { sendNotification, broadcastSocketEvent } from '@/lib/notificationService';
 
 const createBookingSchema = z.object({
   salonId: z.string().uuid(),
@@ -152,31 +153,34 @@ export async function POST(req: NextRequest) {
     });
 
     // Real-time notification: Broadcast booking event via Socket.IO
-    const io = (global as any).io;
-    if (io) {
-      // Notify the specific salon owner room
-      io.to(`salon:${salonId}`).emit('booking_created', booking);
-      console.log(`[Socket] Emitted booking_created for booking ${booking.id} to salon:${salonId}`);
-    }
+    broadcastSocketEvent(`salon:${salonId}`, 'booking_created', booking);
 
-    // Create mock database notification for user and owner
-    await prisma.notification.create({
-      data: {
-        userId: auth.user.id,
-        title: 'Booking Placed',
-        body: `Your booking at ${booking.salon.name} for ${booking.service.name} is pending acceptance.`,
-        type: 'BOOKING_UPDATE',
-      },
+    // Create notifications for Customer, Owner, and assigned Staff
+    await sendNotification({
+      userId: auth.user.id,
+      title: 'Booking Created',
+      body: `Your booking at ${booking.salon.name} for ${booking.service.name} is pending acceptance.`,
+      type: 'Booking Created',
+      referenceId: booking.id,
     });
 
-    await prisma.notification.create({
-      data: {
-        userId: booking.salon.ownerId,
-        title: 'New Booking Request',
-        body: `A new booking has been placed by ${booking.user.name} for ${booking.service.name}.`,
-        type: 'BOOKING_UPDATE',
-      },
+    await sendNotification({
+      userId: booking.salon.ownerId,
+      title: 'New Booking',
+      body: `A new booking has been placed by ${booking.user.name} for ${booking.service.name}.`,
+      type: 'New Booking',
+      referenceId: booking.id,
     });
+
+    await sendNotification({
+      staffId: booking.staffId,
+      title: 'New Assigned Booking',
+      body: `You have been assigned a new booking at ${booking.salon.name} for ${booking.service.name} on ${new Date(booking.bookingDate).toLocaleDateString()} at ${booking.startTime}.`,
+      type: 'New Assigned Booking',
+      referenceId: booking.id,
+    });
+
+    broadcastSocketEvent(`staff:${booking.staffId}`, 'staff_assigned', booking);
 
     return NextResponse.json({
       message: 'Booking placed successfully',

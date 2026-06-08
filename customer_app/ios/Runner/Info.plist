@@ -66,5 +66,17 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>GlowBook requires access to your location to find nearby salons and calculate travel distances.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>GlowBook requires access to your location to find nearby salons and calculate travel distances.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>GlowBook requires camera access to take profile photos and scan salon codes.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>GlowBook requires access to your photo library to choose profile pictures and upload salon gallery images.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>GlowBook requires microphone access to record voice comments and review descriptions.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>GlowBook requires contacts access to invite friends and manage stylist contacts.</string>
 </dict>
 </plist>

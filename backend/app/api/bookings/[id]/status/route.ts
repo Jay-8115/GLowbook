@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { authenticate } from '@/lib/middleware';
-import { sendPushNotification } from '@/lib/fcm';
 import { z } from 'zod';
+import { sendNotification, broadcastSocketEvent } from '@/lib/notificationService';
 
 const updateStatusSchema = z.object({
   status: z.string().transform((val) => {
@@ -119,44 +119,99 @@ export async function PATCH(
     });
 
     // Real-time Event broadcast via Socket.IO
-    const io = (global as any).io;
-    if (io) {
-      let eventName = `booking_${newStatus.toLowerCase()}`;
-      if (newStatus === 'CONFIRMED') eventName = 'booking_confirmed';
-      if (newStatus === 'REJECTED') eventName = 'booking_rejected';
-      if (newStatus === 'CANCELLED') eventName = 'booking_cancelled';
-      if (newStatus === 'COMPLETED') eventName = 'booking_completed';
+    let eventName = `booking_${newStatus.toLowerCase()}`;
+    if (newStatus === 'CONFIRMED') eventName = 'booking_confirmed';
+    if (newStatus === 'REJECTED') eventName = 'booking_rejected';
+    if (newStatus === 'CANCELLED') eventName = 'booking_cancelled';
+    if (newStatus === 'COMPLETED') eventName = 'booking_completed';
 
-      // Notify customer and salon owner rooms
-      io.to(`user:${booking.userId}`).emit(eventName, updatedBooking);
-      io.to(`salon:${booking.salonId}`).emit(eventName, updatedBooking);
-      console.log(`[Socket] Emitted ${eventName} to user:${booking.userId} and salon:${booking.salonId}`);
-    }
+    broadcastSocketEvent(`user:${booking.userId}`, eventName, updatedBooking);
+    broadcastSocketEvent(`salon:${booking.salonId}`, eventName, updatedBooking);
+    broadcastSocketEvent(`staff:${booking.staffId}`, eventName, updatedBooking);
 
-    // Trigger push notifications
-    let notificationTitle = 'Booking Update';
-    let notificationBody = `Your booking at ${booking.salon.name} status is ${newStatus.toLowerCase()}.`;
-
+    // Advanced Notification System
     if (newStatus === 'CONFIRMED') {
-      notificationTitle = 'Booking Confirmed';
-      notificationBody = `Great news! Your booking at ${booking.salon.name} for ${booking.service.name} has been confirmed.`;
+      await sendNotification({
+        userId: booking.userId,
+        title: 'Booking Confirmed',
+        body: `Great news! Your booking at ${booking.salon.name} for ${booking.service.name} has been confirmed.`,
+        type: 'Booking Confirmed',
+        referenceId: booking.id,
+      });
+      await sendNotification({
+        userId: booking.salon.ownerId,
+        title: 'Booking Confirmed',
+        body: `You confirmed booking #${booking.id} for client ${booking.user.name}.`,
+        type: 'Booking Confirmed',
+        referenceId: booking.id,
+      });
+      await sendNotification({
+        staffId: booking.staffId,
+        title: 'Booking Confirmed',
+        body: `Your assigned service for ${booking.user.name} on ${new Date(booking.bookingDate).toLocaleDateString()} at ${booking.startTime} is confirmed.`,
+        type: 'Booking Confirmed',
+        referenceId: booking.id,
+      });
     } else if (newStatus === 'CANCELLED') {
-      notificationTitle = 'Booking Cancelled';
-      notificationBody = `Your booking at ${booking.salon.name} for ${booking.service.name} has been cancelled.`;
+      await sendNotification({
+        userId: booking.userId,
+        title: 'Booking Cancelled',
+        body: `Your booking at ${booking.salon.name} for ${booking.service.name} has been cancelled.`,
+        type: 'Booking Cancelled',
+        referenceId: booking.id,
+      });
+      await sendNotification({
+        userId: booking.salon.ownerId,
+        title: 'Booking Cancelled',
+        body: `Booking #${booking.id} was cancelled.`,
+        type: 'Booking Cancelled',
+        referenceId: booking.id,
+      });
+      await sendNotification({
+        staffId: booking.staffId,
+        title: 'Booking Cancelled',
+        body: `Your assigned appointment for ${booking.user.name} at ${booking.startTime} has been cancelled.`,
+        type: 'Booking Cancelled',
+        referenceId: booking.id,
+      });
     } else if (newStatus === 'REJECTED') {
-      notificationTitle = 'Booking Rejected';
-      notificationBody = `Sorry, your booking at ${booking.salon.name} for ${booking.service.name} was rejected.`;
+      await sendNotification({
+        userId: booking.userId,
+        title: 'Booking Rejected',
+        body: `Sorry, your booking at ${booking.salon.name} for ${booking.service.name} was rejected.`,
+        type: 'Booking Rejected',
+        referenceId: booking.id,
+      });
+      await sendNotification({
+        userId: booking.salon.ownerId,
+        title: 'Booking Rejected',
+        body: `You rejected booking request #${booking.id} for ${booking.user.name}.`,
+        type: 'Booking Rejected',
+        referenceId: booking.id,
+      });
     } else if (newStatus === 'COMPLETED') {
-      notificationTitle = 'Booking Completed';
-      notificationBody = `Thank you for visiting ${booking.salon.name}! Your service for ${booking.service.name} is complete.`;
+      await sendNotification({
+        userId: booking.userId,
+        title: 'Booking Completed',
+        body: `Thank you for visiting ${booking.salon.name}! Your service for ${booking.service.name} is complete.`,
+        type: 'Booking Completed',
+        referenceId: booking.id,
+      });
+      await sendNotification({
+        userId: booking.salon.ownerId,
+        title: 'Booking Completed',
+        body: `Booking #${booking.id} is marked completed. Payment of ₹${booking.totalPrice} has been received.`,
+        type: 'Booking Completed',
+        referenceId: booking.id,
+      });
+      await sendNotification({
+        staffId: booking.staffId,
+        title: 'Booking Completed',
+        body: `Service completed: ${booking.service.name} for ${booking.user.name}. Job well done!`,
+        type: 'Booking Completed',
+        referenceId: booking.id,
+      });
     }
-
-    await sendPushNotification(
-      booking.userId,
-      notificationTitle,
-      notificationBody,
-      'BOOKING_UPDATE'
-    );
 
     return NextResponse.json({
       message: `Booking status updated to ${newStatus}`,

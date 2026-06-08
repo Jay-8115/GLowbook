@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../application/providers/booking_provider.dart';
 import '../../data/models/salon_model.dart';
+import '../../core/services/api_service.dart';
 
 class BookingFlowScreen extends ConsumerStatefulWidget {
   final SalonModel salon;
@@ -19,6 +20,11 @@ class BookingFlowScreen extends ConsumerStatefulWidget {
 }
 
 class _BookingFlowScreenState extends ConsumerState<BookingFlowScreen> {
+  final ApiService _apiService = ApiService();
+  List<StaffModel> _availableStaff = [];
+  bool _isLoadingStaff = false;
+  String? _staffErrorMessage;
+
   StaffModel? _selectedStaff;
   DateTime _selectedDate = DateTime.now().add(const Duration(days: 1));
   String? _selectedTime;
@@ -29,6 +35,59 @@ class _BookingFlowScreenState extends ConsumerState<BookingFlowScreen> {
     '13:00', '14:00', '15:00', '16:00',
     '17:00', '18:00', '19:00'
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedTime = _timeSlots.first;
+    _fetchAvailableStaff();
+  }
+
+  Future<void> _fetchAvailableStaff() async {
+    if (_selectedTime == null) return;
+    setState(() {
+      _isLoadingStaff = true;
+      _staffErrorMessage = null;
+      _selectedStaff = null; // reset stylist selection on date/slot change
+    });
+
+    try {
+      final dateStr = '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
+      final res = await _apiService.get(
+        '/staff/available',
+        queryParameters: {
+          'serviceId': widget.service.id,
+          'date': dateStr,
+          'slot': _selectedTime,
+        },
+      );
+
+      if (res.statusCode == 200) {
+        final List list = res.data;
+        setState(() {
+          _availableStaff = list.map((item) => StaffModel(
+            id: item['staffId'] ?? '',
+            name: item['name'] ?? '',
+            role: item['specialization'] ?? 'Stylist',
+            specialization: item['specialization'] ?? '',
+            avatarUrl: item['avatarUrl'],
+            isAvailable: item['isAvailable'] ?? true,
+          )).toList();
+          _isLoadingStaff = false;
+        });
+      } else {
+        setState(() {
+          _staffErrorMessage = 'Failed to load stylists';
+          _isLoadingStaff = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _staffErrorMessage = 'Error fetching stylists';
+        _isLoadingStaff = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -126,47 +185,81 @@ class _BookingFlowScreenState extends ConsumerState<BookingFlowScreen> {
             // Select Staff member
             const Text('Select Stylist / Staff', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 15)),
             const SizedBox(height: 12),
-            SizedBox(
-              height: 90,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: widget.salon.staff.length,
-                itemBuilder: (context, index) {
-                  final staff = widget.salon.staff[index];
-                  final isSelected = _selectedStaff?.id == staff.id;
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedStaff = staff),
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 12),
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFF8B5CF6) : const Color(0xFF111827),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundImage: staff.avatarUrl != null ? NetworkImage(staff.avatarUrl!) : null,
-                            child: staff.avatarUrl == null ? const Icon(Icons.person, size: 20) : null,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            staff.name,
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: isSelected ? Colors.white : Colors.grey[300],
+            _isLoadingStaff
+                ? const SizedBox(
+                    height: 90,
+                    child: Center(
+                      child: CircularProgressIndicator(color: Color(0xFF8B5CF6)),
+                    ),
+                  )
+                : _staffErrorMessage != null
+                    ? SizedBox(
+                        height: 90,
+                        child: Center(
+                          child: Text(_staffErrorMessage!, style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
+                        ),
+                      )
+                    : _availableStaff.isEmpty
+                        ? Container(
+                            height: 90,
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF111827),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: Colors.white10),
+                            ),
+                            child: const Center(
+                              child: Text(
+                                'No stylists available for this slot.',
+                                style: TextStyle(color: Colors.white54, fontSize: 13, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          )
+                        : SizedBox(
+                            height: 90,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: _availableStaff.length,
+                              itemBuilder: (context, index) {
+                                final staff = _availableStaff[index];
+                                final isSelected = _selectedStaff?.id == staff.id;
+                                return GestureDetector(
+                                  onTap: () => setState(() => _selectedStaff = staff),
+                                  child: Container(
+                                    margin: const EdgeInsets.only(right: 12),
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? const Color(0xFF8B5CF6) : const Color(0xFF111827),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: isSelected ? Colors.transparent : Colors.white.withOpacity(0.05),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 20,
+                                          backgroundImage: staff.avatarUrl != null ? NetworkImage(staff.avatarUrl!) : null,
+                                          child: staff.avatarUrl == null ? const Icon(Icons.person, size: 20) : null,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          staff.name,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: isSelected ? Colors.white : Colors.grey[300],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
             const SizedBox(height: 24),
 
             // Date picker field
@@ -194,6 +287,7 @@ class _BookingFlowScreenState extends ConsumerState<BookingFlowScreen> {
                 );
                 if (date != null) {
                   setState(() => _selectedDate = date);
+                  _fetchAvailableStaff();
                 }
               },
               child: Container(
@@ -233,7 +327,10 @@ class _BookingFlowScreenState extends ConsumerState<BookingFlowScreen> {
                 final time = _timeSlots[index];
                 final isSelected = _selectedTime == time;
                 return GestureDetector(
-                  onTap: () => setState(() => _selectedTime = time),
+                  onTap: () {
+                    setState(() => _selectedTime = time);
+                    _fetchAvailableStaff();
+                  },
                   child: Container(
                     decoration: BoxDecoration(
                       color: isSelected ? const Color(0xFF8B5CF6) : const Color(0xFF111827),
